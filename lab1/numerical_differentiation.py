@@ -25,7 +25,7 @@ deltas_range = np.arange(1, 21, 1)
 deltas = list (map ((lambda power: 2/(2**power)), (deltas_range)))
 deltas.reverse()
 
-methods = [method1, method2, method3, method4, method5]
+methods = [(method1, '1'), (method2, '2'), (method3, '3'), (method4, '4'), (method5, '5')]
 x = 0.5
 
 sin_arg_squared = lambda x: math.sin(x**2)
@@ -51,12 +51,12 @@ sqrt_plus_3_deriv = lambda x: 1/(2*math.sqrt(plus_3(x)))
 
 
 
-functions = [(sin_arg_squared, sin_arg_squared_deriv), (sin_cos, sin_cos_deriv), (exp_sin_cos, exp_sin_cos_deriv), (plus_3, plus_3_deriv), (ln_plus_3, ln_plus_3_deriv)
-             , (sqrt_plus_3, sqrt_plus_3_deriv)]
+functions = [(sin_arg_squared, sin_arg_squared_deriv, 'sin(x**2)'), (sin_cos, sin_cos_deriv, 'sin(cos(x))'), (exp_sin_cos, exp_sin_cos_deriv, 'exp(sin(cos(x)))'), 
+             (plus_3, plus_3_deriv, 'x+3'), (ln_plus_3, ln_plus_3_deriv, 'ln(x+3)'), (sqrt_plus_3, sqrt_plus_3_deriv, 'sqrt(x+3)')]
 
 def get_results_single_function_single_method (function, method, results):
     for i in range(1, 21, 1):
-        res = differentiate_function(function[0], deltas[i-1], method, x) - function[-1](x)
+        res = differentiate_function(function[0], deltas[i-1], method, x) - function[-2](x)
         results.append(abs(res))
 
 results = []
@@ -64,14 +64,19 @@ results = []
 for func in functions:
     for method in methods:
         res = []
-        get_results_single_function_single_method(func, method, res)
+        get_results_single_function_single_method(func, method[0], res)
         deltas_np = np.asarray(deltas)
         res_np = np.asarray(res)
         results.append((deltas_np, res_np))
-        plt.plot(deltas_np, res_np, marker='o')
+        plt.plot(deltas_np, res_np, marker='o', label = method[-1])
         plt.yscale('log')
         plt.xscale('log')
-        plt.show()
-        #plt.show()    
+        
+        #plt.show()   
+    plt.xlabel('delta') 
+    plt.ylabel('Absolute error')
+    plt.title(func[-1])
+    plt.legend(loc='upper left')
+    plt.show()
 
 
