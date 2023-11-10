@@ -82,24 +82,61 @@ def discrepancy(matrix, right_side, u):
 
     return math.sqrt(norm)
 
-def iteration_body(matrix, LplusU, Dinv, u_current, right_side):
+def iteration_body(matrix, LplusU, Dinv_1, Dinv_2, u_current, right_side):
     i = 0
     arr = [[], []]
     discr = 1
     while (discr > 1e-10):
-        u_current = -1*np.dot(np.dot(Dinv, LplusU), u_current) + np.dot(Dinv, right_side)
+        u_current = -1*np.dot(np.dot(Dinv_1, LplusU), u_current) + np.dot(Dinv_2, right_side)
         i+=1
         discr = discrepancy(matrix, right_side, u_current)
         arr[0].append(i)
         arr[1].append(discr)
     
+    plt.yscale("log")
     plt.plot(arr[0], arr[1], marker='o')
     plt.show()
     return u_current
 
+def pivot_matrix(M):
+    m = len(M)
+
+    id_mat = np.eye(m)
+
+    for j in range(m):
+        row = max(range(j, m), key=lambda i: abs(M[i][j]))
+        if j != row:
+            id_mat[j], id_mat[row] = id_mat[row], id_mat[j]
+
+    return id_mat
+
+def lu_decomposition(A):
+    n = len(A)
+
+    L = np.zeros_like(A)
+    U = np.zeros_like(A)
+
+    P = pivot_matrix(A)
+    PA = np.dot(P, A)
+
+    for j in range(n):
+        L[j][j] = 1.0
+
+        for i in range(j+1):
+            s1 = sum(U[k][j] * L[i][k] for k in range(i))
+            U[i][j] = PA[i][j] - s1
+
+        for i in range(j, n):
+            s2 = sum(U[k][j] * L[i][k] for k in range(j))
+            L[i][j] = (PA[i][j] - s2) / U[j][j]
+
+    return (P, L, U)
+
 ################################################################ methods #######################################################################
 
 def gaussian_method(matrix, right_side):
+    print(matrix.shape)
+    print(right_side.shape)
     system = concat_right_side_to_matrix(matrix, right_side)    
     for i in range(0, len(system)):
         system = rotation_for_gauss(system, i)
@@ -119,18 +156,42 @@ def gaussian_method(matrix, right_side):
 
     return sol
     
-def LU_decomposition(matrix, right_side):
-    L = np.eye(len(matrix))
-    for i in range(0, len(matrix)):
-        for j in range(i+1, len(matrix)):
-            if(matrix[j][i] != 0):
-                val = matrix[i][i]/matrix[j][i]
+def LU_solver(matrix, right_side):
+    PLU = lu_decomposition(matrix)
+    right_side = np.dot(PLU[0], right_side)
 
-    print(L)
-    print(matrix)
-    print(np.dot(L, matrix))
+    system = concat_right_side_to_matrix(PLU[1], right_side)
+    sol = np.zeros(len(right_side))
+    for i in range(0, len(system)-1):
+        accum = system[i][len(system[i])-1]
+        for j in range(0, i):
+            accum -= system[i][j]*sol[j]
+    
+        system[i][len(system)] = accum
 
-def seidel(matrix, right_side):
+        sol[i] = system[i][len(system)]/system[i][i]
+
+    for i in range(len(sol)):
+        right_side[i][0] = sol[i]
+
+    system = concat_right_side_to_matrix(PLU[2], right_side)
+    sol = np.zeros(len(right_side))
+    for i in range(len(system)-1, -1, -1):
+        accum = system[i][len(system[i])-1]
+        for j in range(i+1, len(system)):
+            accum -= system[i][j]*sol[j]
+    
+        system[i][len(system)] = accum
+
+        sol[i] = system[i][len(system)]/system[i][i]
+
+    print(sol)
+
+    return sol
+
+
+
+def jacobi(matrix, right_side):
     u = np.zeros_like(right_side)
     LDU = split_LDU(matrix)
     
@@ -147,8 +208,59 @@ def seidel(matrix, right_side):
         for j in range(i+1, len(matrix)):
             LplusU[i][j] = LDU[2][i][j]
 
-    solution = iteration_body(matrix, LplusU, Dinv, u, right_side)
+    solution = iteration_body(matrix, LplusU, Dinv, Dinv, u, right_side)
     return solution
+    
+def seidel(matrix, right_side, eps):
+    n = len(matrix)
+    u = np.zeros(n)  # zero vector
+    arr = [[], []]
+    
+    counter = 0
+
+    converge = False
+    while not converge:
+        u_new = np.copy(u)
+        for i in range(n):
+            s1 = sum(matrix[i][j] * u_new[j] for j in range(i))
+            s2 = sum(matrix[i][j] * u[j] for j in range(i + 1, n))
+            u_new[i] = (right_side[i] - s1 - s2) / matrix[i][i]
+
+        converge = np.linalg.norm(u_new - u) <= eps
+        u = u_new
+        counter += 1
+        arr[0].append(counter)
+        arr[1].append(discrepancy(matrix, right_side, u))
+    
+    plt.yscale("log")
+    plt.plot(arr[0], arr[1], marker='o')
+    plt.show()
+    return u
+
+def relaxation(matrix, right_side, eps):
+    u = np.zeros_like(right_side)
+    LDU = split_LDU(matrix)
+    omega = 1.2
+    L = LDU[0]
+    D = LDU[1]
+    U = LDU[2]
+    B   = (- np.linalg.inv(D + omega * L)).dot((omega - 1) * D + omega * U)
+    F_b = omega * (np.linalg.inv(D + omega * L)).dot(right_side)
+
+    arr = [[], []]
+    k=0
+    while (np.linalg.norm(right_side - matrix.dot(u), ord = 2) > eps):
+        u = B.dot(u) + F_b
+        k += 1
+        arr[0].append(k)
+        arr[1].append(np.linalg.norm(right_side - matrix.dot(u)))
+    
+    plt.yscale("log")
+    plt.plot(arr[0], arr[1], marker='o')
+    plt.show()
+    
+    return solution
+
     
 
 ################################################################ testing code #######################################################################
@@ -178,5 +290,12 @@ a[99][99] = 1
 
 solution = gaussian_method(a, b)
 print("Невязка для метода Гаусса с выбором главного элемента =", discrepancy(a, b, solution))
+print(solution)
+solution = LU_solver(a, b)
+print("Невязка для LU_decomposition =", discrepancy(a, b, solution))
 
-solution = seidel(a, b_for_iters)
+solution = jacobi(a, b_for_iters)
+
+solution = seidel(a, b_for_iters, 1e-10)
+
+solution = relaxation(a, b_for_iters, 1e-10)
