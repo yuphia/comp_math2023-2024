@@ -135,8 +135,6 @@ def lu_decomposition(A):
 ################################################################ methods #######################################################################
 
 def gaussian_method(matrix, right_side):
-    print(matrix.shape)
-    print(right_side.shape)
     system = concat_right_side_to_matrix(matrix, right_side)    
     for i in range(0, len(system)):
         system = rotation_for_gauss(system, i)
@@ -184,8 +182,6 @@ def LU_solver(matrix, right_side):
         system[i][len(system)] = accum
 
         sol[i] = system[i][len(system)]/system[i][i]
-
-    print(sol)
 
     return sol
 
@@ -290,7 +286,6 @@ a[99][99] = 1
 
 solution = gaussian_method(a, b)
 print("Невязка для метода Гаусса с выбором главного элемента =", discrepancy(a, b, solution))
-print(solution)
 solution = LU_solver(a, b)
 print("Невязка для LU_decomposition =", discrepancy(a, b, solution))
 
